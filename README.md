@@ -57,6 +57,65 @@ dsh plugin --profile web add @ymw/dsh-hme
 
 # hme-plugin — Harness-Memory-Evolution
 
+*Give your DeepSeek a mind of its own.*
+
+DeepSeek Harness is formidable — yet it harbors one flaw: **the moment a session ends, the memory resets.** Preferences, conventions, hard-won lessons all evaporate, and the next session starts from blank.
+
+Enter HME (Harness-Memory-Evolution).
+
+## The Whale's Threefold Memory
+
+1. **Who you are** — your identity, your preferences, your habits, remembered across every project.
+2. **What this project is** — the irreplaceable tech stack, conventions, and core points of each workspace.
+3. **The pits you've fallen into** — proven lessons and core methodology; anything genuinely useful, commit to memory.
+
+Yet it never grows bloated. Core memory is sealed by bounded caps to keep only the essence; the flood of experience sinks into an archive tier, retrieved on demand and pruned by suggestion when full — like a CPU's multi-level cache: **the small and fast stay resident, the vast stay within reach.**
+
+Drawing on the strengths of Codex, Claude Code, OpenClaw, and Hermes Agent, HME lets your whale **never forget — and never be distracted by trivia.**
+
+## How it stacks up
+
+| Dimension | Codex CLI | Claude Code | OpenClaw | **HME** |
+|---|---|---|---|---|
+| Memory shape | MEMORY + USER two files | CLAUDE.md + skills | layered memory | USER + MEMORY + archive three-tier |
+| Against bloat | hard cap (reject) | unbounded | vector store | **bounded core + elastic archive** |
+| Retrieval | none (full injection) | skills on demand | vector search | recall keyword search |
+| Expertise in | model writes manually | human hand-writes | automatic | **model writes + 4 distillation criteria** |
+| Auditability | plain text | plain text | structured / black-box | **plain text §-delimited** |
+
+## Install in 30 seconds
+
+**From GitHub (recommended, works right now):**
+
+```sh
+dsh plugin --profile web add github:weopenfire-git/hme-plugin
+```
+
+**Or from npm (once released):**
+
+```sh
+dsh plugin --profile web add @ymw/dsh-hme
+```
+
+### Then add one loader row
+
+Open the profile's `cordis.patch.yml` and add a host row:
+
+```yaml
+- insert:
+    - id: hme-plugin
+      name: '@ymw/dsh-hme'  # package name for npm; use github:weopenfire-git/hme-plugin for GitHub
+      config:
+        memoryCharLimit: 2584
+        userCharLimit: 1597
+```
+
+Give your DeepSeek a mind of its own.
+
+---
+
+# Technical reference
+
 Cross-session long-term memory for DeepSeek Harness, as an out-of-tree plugin. It gives an agent two bounded plain-text memory files plus a `memory` tool, so user preferences and project facts survive across sessions instead of being relearned every time.
 
 > **Status:** Phase 1 + Phase 1.5 — core memory plus the archive overflow layer. Developer preview: the Harness APIs this plugin builds on are still changing. See [DESIGN.md](./DESIGN.md) and [ARCHIVE.md](./ARCHIVE.md).
