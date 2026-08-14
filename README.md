@@ -26,8 +26,29 @@ HME（Harness-Memory-Evolution）就是来治这个的。
 
 ## 30 秒装上
 
+**从 GitHub 装（推荐，立即可用）：**
+
 ```sh
-dsh plugin --profile web add @yinging/dsh-hme
+dsh plugin --profile web add github:weopenfire-git/hme-plugin
+```
+
+**或从 npm 装（发布后可用）：**
+
+```sh
+dsh plugin --profile web add @ymw/dsh-hme
+```
+
+### 然后补一行加载配置
+
+打开 profile 的 \`cordis.patch.yml\`，加一条 host 行：
+
+```yaml
+- insert:
+    - id: hme-plugin
+      name: '@ymw/dsh-hme'  # npm 装用包名；GitHub 装改为 github:weopenfire-git/hme-plugin
+      config:
+        memoryCharLimit: 2584
+        userCharLimit: 1597
 ```
 
 给你的 DeepSeek 装上大脑。
