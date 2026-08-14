@@ -1,6 +1,6 @@
 # HME — 给 DeepSeek 装上大脑
 
-DeepSeek Harness 很强，但有个硬伤：**会话一结束，记忆清零。** 偏好、约定、教训全部蒸发，下次从头再来。
+DeepSeek Harness 很强，但有个硬伤：**会话结束，记忆清零。** 下次从头再来。
 
 HME（Harness-Memory-Evolution）就是来治这个的。
 
