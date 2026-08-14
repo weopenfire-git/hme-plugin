@@ -14,7 +14,7 @@ HME（Harness-Memory-Evolution）就是来治这个的。
 
 借鉴 Codex、Claude Code、OpenClaw、Hermes Agent 等成熟记忆系统的优点，让鲸宝**不会失忆，也不会被杂事烦扰**。
 
-## 和别家比，赢在哪
+## 和别家比有什么不同？
 
 | 维度 | Codex CLI | Claude Code | OpenClaw | **HME** |
 |---|---|---|---|---|
