@@ -12,6 +12,9 @@ export type ArchiveCategory = 'facts' | 'preferences' | 'methods' | 'lessons'
 /** Action the archive tool performs (move relocates a core fact). */
 export type ArchiveToolAction = 'add' | 'replace' | 'remove' | 'move'
 
+/** A normalized archive topic tag (lowercase, kebab-case). */
+export type ArchiveTag = string
+
 /** One per-scope frozen snapshot of both memory files, taken at session start. */
 export interface FrozenSnapshot {
   /** Global USER.md content, frozen. */

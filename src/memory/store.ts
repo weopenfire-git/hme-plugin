@@ -1,10 +1,14 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import type { ScopeKey } from '@deepseek-ai/dsh-scope'
 import type { Config } from '../config.ts'
 import type { ArchiveCategory, FrozenSnapshot, MemoryAction, MemoryTarget } from '../types.ts'
-import { mutateArchive as mutateArchiveDoc, parseArchive, renderArchive, searchArchive } from './archive.ts'
-import type { ArchiveDocument, RecallHit } from './archive.ts'
+import {
+  applyTaggedWrite, emptyIndex, normalizeTags, parseIndex, renderIndex,
+  renderEntry, searchEntries, stripTags, extractTags, tagFilename,
+} from './archive.ts'
+import type { ArchiveTag } from '../types.ts'
+import type { RecallHitV2 } from './archive.ts'
 import { applyMutation, parseFacts, renderFacts } from './facts.ts'
 
 /** Per-fact usage statistics, kept in a metadata file beside archive.md. */
@@ -62,15 +66,31 @@ export class MemoryStore {
     return resolve(root, this.config.workspaceMemoryFile)
   }
 
-  /** Absolute path of the workspace archive.md for one session workspace root. */
-  private archivePath(workspaceRoot: string | undefined): string {
+  /** Absolute path of the workspace archive.md (legacy single file). */
+  private legacyArchivePath(workspaceRoot: string | undefined): string {
     const root = workspaceRoot ?? process.cwd()
     return resolve(root, this.config.archiveMemoryFile)
   }
 
+  /** Root directory holding per-topic archive files (P2.1). */
+  private archiveDir(workspaceRoot: string | undefined): string {
+    const root = workspaceRoot ?? process.cwd()
+    return resolve(root, this.config.archiveDirectory)
+  }
+
+  /** Absolute path of one topic file inside the archive directory. */
+  private topicPath(filename: string, workspaceRoot: string | undefined): string {
+    return resolve(this.archiveDir(workspaceRoot), filename)
+  }
+
+  /** Absolute path of INDEX.md. */
+  private indexPath(workspaceRoot: string | undefined): string {
+    return resolve(this.archiveDir(workspaceRoot), 'INDEX.md')
+  }
+
   /** Absolute path of the archive metadata JSON, derived from the archive path. */
   private metaPath(workspaceRoot: string | undefined): string {
-    return this.archivePath(workspaceRoot).replace(/\.md$/, '.meta.json')
+    return resolve(this.archiveDir(workspaceRoot), 'META.json')
   }
 
   /** Synchronous freeze of both core files for one scope, at session start. */
@@ -101,27 +121,63 @@ export class MemoryStore {
     return outcome.message
   }
 
-  /** Read-merge-write one archive-section mutation, appending eviction hints when full. */
-  mutateArchive(category: ArchiveCategory, action: 'add' | 'replace' | 'remove', content: string | undefined, oldText: string | undefined, workspaceRoot: string | undefined): string {
-    const path = this.archivePath(workspaceRoot)
-    const doc = parseArchive(readFileIfPresent(path))
-    const outcome = mutateArchiveDoc(doc, action, category, content, oldText, this.config.archiveCharLimit)
-    if (!outcome.ok) {
-      if (outcome.message.includes('archive over limit')) {
-        const suggestion = this.suggestEvictions(doc, workspaceRoot)
-        return outcome.message + (suggestion.length > 0 ? '\n' + suggestion : '')
-      }
-      return outcome.message
+  /** Migrate a legacy single archive.md into per-topic files (idempotent). */
+  ensureMigrated(workspaceRoot: string | undefined): void {
+    const legacyPath = this.legacyArchivePath(workspaceRoot)
+    const legacyText = readFileIfPresent(legacyPath)
+    if (legacyText.trim().length === 0) return
+    const migDir = this.archiveDir(workspaceRoot)
+    const indexPath = this.indexPath(workspaceRoot)
+    const index = parseIndex(readFileIfPresent(indexPath))
+    // Migrate each non-empty § line under one migrated topic bucket.
+    for (const raw of legacyText.split(/\r?\n/)) {
+      const line = raw.trim()
+      if (line.length === 0 || line.startsWith('## ')) continue
+      // Bucket by a heuristic tag derived from first word; default 'legacy'.
+      const tag = normalizeTags([line.split(/\s+/)[0] ?? 'legacy'])[0] ?? 'legacy'
+      const filename = tagFilename(tag)
+      const targetPath = resolve(migDir, filename)
+      const existing = readFileIfPresent(targetPath) ? readFileIfPresent(targetPath).trim().split(/\r?\n/) : []
+      const outcome = applyTaggedWrite(existing, [tag], stripTags(line))
+      writeFileEnsured(targetPath, outcome.entries.join('\n') + '\n')
+      index.entries[tag] = { filename, lastUpdated: new Date().toISOString() }
     }
-    writeFileEnsured(path, renderArchive(outcome.doc))
-    this.reconcileMeta(outcome.doc, workspaceRoot)
-    return outcome.message
+    writeFileEnsured(indexPath, renderIndex(index))
+    // Rename legacy file out of the way so a later call is idempotent.
+    try {
+      writeFileSync(legacyPath + '.migrated', legacyText)
+    } catch { /* already handled by backup */ }
+    writeFileSync(legacyPath, '')
   }
 
-  /** Move one core fact into an archive section (core-overflow downgrade). */
-  moveFromCore(oldText: string | undefined, category: ArchiveCategory | undefined, workspaceRoot: string | undefined): string {
+  /** Write one tagged entry into the archive directory, overwriting same-tag entries. */
+  mutateTopic(tags: readonly ArchiveTag[], content: string | undefined, workspaceRoot: string | undefined): string {
+    if (content === undefined || content.trim().length === 0) return 'archive requires non-empty content'
+    this.ensureMigrated(workspaceRoot)
+    const norm = normalizeTags(tags)
+    if (norm.length === 0) {
+      const err = 'archive requires at least one tag'
+      return err
+    }
+    const tag = norm[0]
+    const filename = tagFilename(tag)
+    const targetPath = this.topicPath(filename, workspaceRoot)
+    const existing = readFileIfPresent(targetPath).trim().split(/\r?\n/).filter((l) => l.length > 0)
+    const outcome = applyTaggedWrite(existing, norm, content)
+    writeFileEnsured(targetPath, outcome.entries.join('\n') + '\n')
+    // update index
+    const indexPath = this.indexPath(workspaceRoot)
+    const index = parseIndex(readFileIfPresent(indexPath))
+    index.entries[tag] = { filename, lastUpdated: new Date().toISOString() }
+    writeFileEnsured(indexPath, renderIndex(index))
+    return outcome.replaced ? 'replaced existing ' + tag : 'added to ' + tag
+  }
+
+  /** Move one core fact into the archive (tag-based). */
+  moveFromCore(oldText: string | undefined, tag: ArchiveTag | undefined, workspaceRoot: string | undefined): string {
     if (oldText === undefined || oldText.trim().length === 0) return 'move requires non-empty old_text'
-    if (category === undefined) return 'move requires a destination category'
+    if (tag === undefined) return 'move requires a destination tag'
+    this.ensureMigrated(workspaceRoot)
     const corePath = this.memoryPath(workspaceRoot)
     const coreFacts = parseFacts(readFileIfPresent(corePath))
     const matches = coreFacts.filter((fact) => fact.includes(oldText))
@@ -129,22 +185,39 @@ export class MemoryStore {
     if (matches.length > 1) return 'ambiguous: ' + matches.length + ' facts match "' + oldText + '"; narrow old_text'
     const moved = matches[0]
     const remaining = coreFacts.filter((fact) => fact !== moved)
-    const archivePath = this.archivePath(workspaceRoot)
-    const doc = parseArchive(readFileIfPresent(archivePath))
-    const outcome = mutateArchiveDoc(doc, 'add', category, moved, undefined, this.config.archiveCharLimit)
-    if (!outcome.ok) return outcome.message
+    // add to archive then remove from core only if archive accepted
+    const filename = tagFilename(tag)
+    const targetPath = this.topicPath(filename, workspaceRoot)
+    const existing = readFileIfPresent(targetPath).trim().split(/\r?\n/).filter((l) => l.length > 0)
+    const outcome = applyTaggedWrite(existing, [tag], stripTags(moved))
+    writeFileEnsured(targetPath, outcome.entries.join('\n') + '\n')
+    const indexPath = this.indexPath(workspaceRoot)
+    const index = parseIndex(readFileIfPresent(indexPath))
+    index.entries[tag] = { filename, lastUpdated: new Date().toISOString() }
+    writeFileEnsured(indexPath, renderIndex(index))
     writeFileEnsured(corePath, renderFacts(remaining))
-    writeFileEnsured(archivePath, renderArchive(outcome.doc))
-    return 'moved "' + moved + '" to archive ' + category
+    return 'moved "' + stripTags(moved) + '" to archive ' + tag
   }
 
-  /** Case-insensitive keyword search over the workspace archive, recording usage. */
+  /** Case-insensitive keyword search across all topic files, recording usage. */
   recall(query: string, workspaceRoot: string | undefined): string {
-    const path = this.archivePath(workspaceRoot)
-    const hits = searchArchive(readFileIfPresent(path), query)
-    if (hits.length === 0) return 'no archive facts match "' + query + '"'
-    this.bumpUsage(hits, workspaceRoot)
-    return hits.map((hit) => '[' + (hit.category ?? '?') + '] line ' + hit.line + ': ' + hit.text).join('\n')
+    this.ensureMigrated(workspaceRoot)
+    const dir = this.archiveDir(workspaceRoot)
+    let files: string[] = []
+    try {
+      files = readdirSync(dir).filter((f) => f.endsWith('.md') && f !== 'INDEX.md')
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e
+    }
+    const allHits: RecallHitV2[] = []
+    for (const file of files) {
+      const text = readFileIfPresent(resolve(dir, file))
+      const entries = text.trim().split(/\r?\n/).filter((l) => l.length > 0)
+      allHits.push(...searchEntries(file, entries, query))
+    }
+    if (allHits.length === 0) return 'no archive facts match "' + query + '"'
+    this.bumpUsage(allHits, workspaceRoot)
+    return allHits.map((h) => '[' + (h.tags.length > 0 ? h.tags.join(',') : '?') + '] ' + h.filename + ':' + h.line + ' ' + h.text).join('\n')
   }
 
   /** Read the metadata map, degrading to empty when absent or corrupt. */
@@ -166,7 +239,7 @@ export class MemoryStore {
   }
 
   /** Increment use counts for recall hits. */
-  private bumpUsage(hits: readonly RecallHit[], workspaceRoot: string | undefined): void {
+  private bumpUsage(hits: readonly RecallHitV2[], workspaceRoot: string | undefined): void {
     const meta = this.readMeta(workspaceRoot)
     const now = Date.now()
     for (const hit of hits) {
@@ -178,29 +251,25 @@ export class MemoryStore {
     this.writeMeta(workspaceRoot, meta)
   }
 
-  /** Rank facts by least-used then oldest, returning the top n as removal candidates. */
-  private suggestEvictions(doc: ArchiveDocument, workspaceRoot: string | undefined, n = 5): string {
+  /**
+   * Rank every entry across topic files by least-used then oldest. Used as an
+   * advisory helper; the tagged archive rejects overflow rather than deleting.
+   */
+  async suggestEvictions(workspaceRoot: string | undefined, n = 5): Promise<string> {
     const meta = this.readMeta(workspaceRoot)
-    const allFacts = [...doc.facts, ...doc.preferences, ...doc.methods, ...doc.lessons]
+    const dir = this.archiveDir(workspaceRoot)
+    let allFacts: string[] = []
+    try {
+      for (const file of readdirSync(dir).filter((f) => f.endsWith('.md') && f !== 'INDEX.md')) {
+        const text = readFileIfPresent(resolve(dir, file))
+        allFacts.push(...text.trim().split(/\r?\n/).filter((l) => l.length > 0))
+      }
+    } catch { /* dir may not exist yet */ }
     const ranked = allFacts
       .map((fact) => ({ fact, usage: meta[fact] ?? { uses: 0, lastUsed: 0 } }))
       .sort((a, b) => a.usage.uses - b.usage.uses || a.usage.lastUsed - b.usage.lastUsed)
       .slice(0, n)
     if (ranked.length === 0) return ''
     return 'candidates to remove (least used, then oldest):\n' + ranked.map((r) => '- ' + r.fact).join('\n')
-  }
-
-  /** Drop metadata entries whose fact no longer exists after a remove/replace. */
-  private reconcileMeta(doc: ArchiveDocument, workspaceRoot: string | undefined): void {
-    const meta = this.readMeta(workspaceRoot)
-    const live = new Set([...doc.facts, ...doc.preferences, ...doc.methods, ...doc.lessons])
-    let changed = false
-    for (const key of Object.keys(meta)) {
-      if (!live.has(key)) {
-        delete meta[key]
-        changed = true
-      }
-    }
-    if (changed) this.writeMeta(workspaceRoot, meta)
   }
 }

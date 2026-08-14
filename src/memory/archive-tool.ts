@@ -7,10 +7,10 @@ export function archiveTool(store: MemoryStore) {
   return defineTool({
     name: 'archive',
     description:
-      'Store durable project knowledge in the workspace archive, the larger overflow layer for what does not fit in core memory. Sections: facts (stable facts), preferences (project conventions), methods (how-to steps), lessons (pitfalls: symptom, cause, fix). Before adding, ask: will a later session need this? can it be looked up from files/code/docs (if so store only the conclusion)? is it a method or principle rather than a one-off instance (store the former)? will it go stale soon? Use action move to relocate one fact from core memory into a section when core is full.',
+      'Store durable project knowledge in the workspace archive, the larger overflow layer for what does not fit in core memory. Each entry carries 1-3 topic tags (#tag); writing with a tag that already exists replaces (overwrites) the old entry for that tag, keeping archives from bloating. Before adding, ask four questions: will a later session need this? can it be looked up from files/code/docs (if so store only the conclusion)? is it a method or principle rather than a one-off instance (store the former)? will it go stale soon? Use action move to relocate a core fact into the archive under a tag.',
     parameters: {
       action: { type: 'string', enum: ['add', 'replace', 'remove', 'move'], required: true },
-      category: { type: 'string', enum: ['facts', 'preferences', 'methods', 'lessons'] },
+      tag: { type: 'string' },
       content: { type: 'string' },
       old_text: { type: 'string' },
     },
@@ -21,12 +21,15 @@ export function archiveTool(store: MemoryStore) {
     async execute(args, exec) {
       const workspaceRoot = exec.agent?.session.header.cwd
       if (args.action === 'move') {
-        return store.moveFromCore(args.old_text, args.category, workspaceRoot)
+        return store.moveFromCore(args.old_text, args.tag, workspaceRoot)
       }
-      if (args.category === undefined) {
-        return 'category is required for add/replace/remove'
+      if (args.action === 'remove') {
+        // remove is not yet implemented in the tagged model; support via recall+manual
+        return 'remove is not supported in the tagged archive yet; overwrite via add with same tag'
       }
-      return store.mutateArchive(args.category, args.action, args.content, args.old_text, workspaceRoot)
+      const tag = args.tag
+      if (!tag) return 'archive add requires a tag'
+      return store.mutateTopic([tag], args.content, workspaceRoot)
     },
   })
 }

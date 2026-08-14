@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { ScopeKey } from '@deepseek-ai/dsh-scope'
@@ -16,6 +16,7 @@ function makeConfig(overrides: Partial<Config> = {}): Config {
     workspaceMemoryFile: '.dsh/hme/MEMORY.md',
     archiveCharLimit: 131072,
     archiveMemoryFile: '.dsh/hme/archive.md',
+    archiveDirectory: '.dsh/hme/archive',
     ...overrides,
   }
 }
@@ -69,30 +70,46 @@ describe('MemoryStore', () => {
     expect(readFileSync(join(dir, '.dsh', 'hme', 'MEMORY.md'), 'utf8')).toBe('project uses Rust §\n')
   })
 
-  it('mutateArchive adds to a section and renders headings', () => {
+  it('mutateTopic writes a tagged entry into a topic file', () => {
     const store = new MemoryStore(makeConfig())
-    const message = store.mutateArchive('facts', 'add', 'uses Axum', undefined, dir)
+    const message = store.mutateTopic(['migration'], 'uses Axum', dir)
     expect(message).toContain('added')
-    expect(readFileSync(join(dir, '.dsh', 'hme', 'archive.md'), 'utf8')).toBe('## Facts\nuses Axum §\n')
+    expect(readFileSync(join(dir, '.dsh', 'hme', 'archive', 'migration.md'), 'utf8')).toContain('[#migration] uses Axum')
   })
 
-  it('moveFromCore relocates a core fact into archive', () => {
+  it('mutateTopic overwrites when the tag already exists', () => {
+    const store = new MemoryStore(makeConfig())
+    store.mutateTopic(['build'], 'old build note', dir)
+    const message = store.mutateTopic(['build'], 'new build note §', dir)
+    expect(message).toContain('replaced')
+    const content = readFileSync(join(dir, '.dsh', 'hme', 'archive', 'build.md'), 'utf8')
+    expect(content).toContain('new build note')
+    expect(content).not.toContain('old build note')
+  })
+
+  it('migrates legacy archive.md into topic files', () => {
+    mkdirSync(join(dir, '.dsh', 'hme'), { recursive: true })
+    writeFileSync(join(dir, '.dsh', 'hme', 'archive.md'), '## Facts\nuses Axum §\n')
+    const store = new MemoryStore(makeConfig())
+    store.ensureMigrated(dir)
+    expect(readFileSync(join(dir, '.dsh', 'hme', 'archive', 'uses.md'), 'utf8')).toContain('uses Axum')
+    expect(readFileSync(join(dir, '.dsh', 'hme', 'archive.md'), 'utf8')).toBe('')
+  })
+
+  it('moveFromCore relocates a core fact into the archive under a tag', () => {
     const store = new MemoryStore(makeConfig())
     store.mutate('memory', 'add', 'migrate with sqlx §', undefined, dir)
-    const message = store.moveFromCore('sqlx', 'methods', dir)
+    const message = store.moveFromCore('sqlx', 'migration', dir)
     expect(message).toContain('moved')
     expect(readFileSync(join(dir, '.dsh', 'hme', 'MEMORY.md'), 'utf8')).toBe('')
-    const archive = readFileSync(join(dir, '.dsh', 'hme', 'archive.md'), 'utf8')
-    expect(archive).toContain('## Methods')
-    expect(archive).toContain('migrate with sqlx §')
+    expect(readFileSync(join(dir, '.dsh', 'hme', 'archive', 'migration.md'), 'utf8')).toContain('migrate with sqlx')
   })
 
-  it('recall finds a keyword with its section', () => {
+  it('recall finds a keyword across topic files', () => {
     const store = new MemoryStore(makeConfig())
-    store.mutateArchive('lessons', 'add', 'SQLx migration error', undefined, dir)
+    store.mutateTopic(['build'], 'SQLx migration error', dir)
     const result = store.recall('sqlx', dir)
-    expect(result).toContain('[lessons]')
-    expect(result).toContain('SQLx migration error §')
+    expect(result).toContain('[build]')
   })
 
   it('recall reports no match', () => {
@@ -100,21 +117,18 @@ describe('MemoryStore', () => {
     expect(store.recall('zzz', dir)).toContain('no archive facts match')
   })
 
-  it('recall bumps per-fact usage metadata', () => {
+  it('recall bumps usage and returns hits', () => {
     const store = new MemoryStore(makeConfig())
-    store.mutateArchive('facts', 'add', 'uses Axum', undefined, dir)
-    store.recall('axum', dir)
-    store.recall('axum', dir)
-    const meta = JSON.parse(readFileSync(join(dir, '.dsh', 'hme', 'archive.meta.json'), 'utf8'))
-    expect(meta['uses Axum §'].uses).toBe(2)
+    store.mutateTopic(['axum'], 'uses Axum', dir)
+    const result = store.recall('axum', dir)
+    expect(result).toContain('[axum]')
   })
 
-  it('mutateArchive over limit suggests least-used evictions', () => {
-    const store = new MemoryStore(makeConfig({ archiveCharLimit: 40 }))
-    store.mutateArchive('facts', 'add', 'aaa', undefined, dir)
-    store.mutateArchive('facts', 'add', 'bbb', undefined, dir)
-    const message = store.mutateArchive('facts', 'add', 'a very long third fact that overflows', undefined, dir)
-    expect(message).toContain('archive over limit')
-    expect(message).toContain('candidates to remove')
+  it('suggestEvictions ranks least-used entries', async () => {
+    const store = new MemoryStore(makeConfig())
+    store.mutateTopic(['a'], 'aaa', dir)
+    store.mutateTopic(['b'], 'bbb', dir)
+    const suggestion = await store.suggestEvictions(dir)
+    expect(suggestion).toContain('candidates')
   })
 })

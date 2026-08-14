@@ -3,6 +3,7 @@ import z from '@deepseek-ai/schemastery'
 
 const DEFAULT_WORKSPACE_MEMORY_FILE = '.dsh/hme/MEMORY.md'
 const DEFAULT_ARCHIVE_FILE = '.dsh/hme/archive.md'
+const DEFAULT_ARCHIVE_DIR = '.dsh/hme/archive'
 
 /**
  * HME plugin configuration. Phase 1 ships the core memory layer; Phase 1.5
@@ -26,6 +27,8 @@ export interface Config {
   archiveCharLimit: number
   /** Workspace-relative path of archive.md. */
   archiveMemoryFile: string
+  /** Workspace-relative directory holding per-topic archive files (P2.1). */
+  archiveDirectory: string
 }
 
 export const Config: z<Config> = z.object({
@@ -35,4 +38,5 @@ export const Config: z<Config> = z.object({
   workspaceMemoryFile: z.string().default(DEFAULT_WORKSPACE_MEMORY_FILE),
   archiveCharLimit: z.number().step(1).min(1).default(131072),
   archiveMemoryFile: z.string().default(DEFAULT_ARCHIVE_FILE),
+  archiveDirectory: z.string().default(DEFAULT_ARCHIVE_DIR),
 })
