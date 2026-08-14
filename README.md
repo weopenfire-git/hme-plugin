@@ -1,3 +1,35 @@
+# HME — 给 DeepSeek 装上大脑
+
+> **Harness-Memory-Evolution**：让 DeepSeek Harness 的 Agent 拥有跨会话长期记忆。
+
+别的 Agent 每次对话都像失忆——忘了你是谁、项目怎么写的、踩过哪些坑。HME 让它「记得」。
+
+## 它解决什么
+
+DeepSeek Harness 会话一结束，Agent 就清零，下次从头再来。HME 给它两层记忆：
+
+- **核心记忆 core**：小而硬、永远在场。用户画像（`USER.md`，全局）+ 项目事实（`MEMORY.md`，按工作区），每会话自动注入。
+- **档案记忆 archive**：大而软、按需检索。方法、教训、细节沉淀到 archive，需要时用 `recall` 查。
+
+## 核心思路
+
+**存方法论，不存原始数据。** 不塞代码、日志、对话原文，而是蒸馏成「怎么做的」「为什么」「坑在哪」——像人脑记经验，不记录像。
+
+- 有界 core：φ 斐波那契上限（1597 / 2584 字符），拒绝式、不截断
+- 无界 archive：≈ 一个上下文窗口（128K），满时按 LRU 给出淘汰建议
+- 会话启动冻结快照，会话内写入不污染当前上下文
+- 全部纯文本、`§` 分隔、人类可读可编辑
+
+## 功能
+
+| 工具 | 作用 |
+|---|---|
+| `memory` | 读写核心记忆（USER.md / MEMORY.md） |
+| `archive` | 写档案（事实/偏好/方法/教训）+ 从 core 降级 |
+| `recall` | 按关键词检索档案 |
+
+---
+
 # hme-plugin — Harness-Memory-Evolution
 
 Cross-session long-term memory for DeepSeek Harness, as an out-of-tree plugin. It gives an agent two bounded plain-text memory files plus a `memory` tool, so user preferences and project facts survive across sessions instead of being relearned every time.
