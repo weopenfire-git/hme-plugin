@@ -51,11 +51,20 @@ export function tagFilename(tag: ArchiveTag): string {
   return tag + '.md'
 }
 
-/** Render one entry line: optional tags then a §-terminated fact body. */
-export function renderEntry(tags: readonly ArchiveTag[], body: string): string {
+/** Options for rendering an entry with optional value tier and TTL. */
+export interface EntryMeta {
+  value?: MemoryValue
+  ttl?: string
+}
+
+/** Render one entry line: tags, value+tll markers (if any), then a §-terminated fact body. */
+export function renderEntry(tags: readonly ArchiveTag[], body: string, meta?: EntryMeta): string {
   const tagPrefix = tags.map((t) => TAG_OPEN + t + TAG_CLOSE).join(' ')
+  const valueMark = meta?.value === undefined ? '' : renderValueMarker(meta.value)
+  const expiryMark = meta?.ttl === undefined ? '' : renderExpiryMarker(meta.ttl)
   const bodyLine = body.trim().endsWith('§') ? body.trim() : body.trim() + ' §'
-  return (tagPrefix.length > 0 ? tagPrefix + ' ' : '') + bodyLine
+  const parts = [tagPrefix, valueMark, expiryMark].filter((s) => s.length > 0).join(' ')
+  return (parts.length > 0 ? parts + ' ' : '') + bodyLine
 }
 
 /** The per-topic index: tag → filename + last-updated. Lives in INDEX.md. */
@@ -99,9 +108,10 @@ export function applyTaggedWrite(
   existing: readonly string[],
   tags: readonly ArchiveTag[],
   body: string,
+  meta?: EntryMeta,
 ): { entries: string[]; replaced: boolean; added: boolean } {
   const normTags = normalizeTags(tags)
-  const newEntry = renderEntry(normTags, body)
+  const newEntry = renderEntry(normTags, body, meta)
   if (normTags.length === 0) {
     const dedup = stripTags(newEntry).trim()
     if (existing.some((e) => stripTags(e).trim() === dedup)) return { entries: [...existing], replaced: false, added: false }
@@ -143,4 +153,68 @@ export function searchEntries(filename: string, entries: readonly string[], quer
     }
   }
   return hits
+}
+/**
+ * Memory value tiers (your 'keep only the precious 1/10' insight).
+ * Higher tier = more worth keeping when the archive must shrink.
+ */
+export type MemoryValue = 1 | 2 | 3
+
+/** Render the value marker, or '' when not provided (defaults to 3/casual). */
+export function renderValueMarker(value: MemoryValue | undefined): string {
+  return value === undefined ? '' : '[v:' + value + ']'
+}
+
+/** Parse a leading '\[v:N]' marker; returns undefined when absent. */
+export function parseValueMarker(line: string): MemoryValue | undefined {
+  const m = /^\[v:([123])\]/.exec(line.trim())
+  return m ? (Number(m[1]) as MemoryValue) : undefined
+}
+
+/** Render the TTL marker, or '' when no TTL. */
+export function renderTtlMarker(ttl: string | undefined): string {
+  return ttl === undefined ? '' : '[ttl:' + ttl + ']'
+}
+
+/** Parse a leading '\[ttl:XXX]' marker; returns undefined when absent. */
+export function parseTtlMarker(line: string): string | undefined {
+  const m = /^\[ttl:([^\]]+)\]/.exec(line.trim())
+  return m ? m[1].trim() : undefined
+}
+
+/**
+ * Parse a human-friendly TTL (e.g. '30d', '1w', '12h') into millisecond duration.
+ * Unsupported or invalid input returns undefined.
+ */
+export function parseTtlMs(ttl: string | undefined): number | undefined {
+  if (!ttl) return undefined
+  const m = /^(\d+)([mdhwy]?)$/.exec(ttl.trim())
+  if (!m) return undefined
+  const n = Number(m[1])
+  const unit = m[2] || 'd'
+  const mult: Record<string, number> = { h: 3_600_000, d: 86_400_000, w: 7 * 86_400_000, m: 30 * 86_400_000, y: 365 * 86_400_000 }
+  return n * (mult[unit] ?? mult.d)
+}
+
+/**
+ * Compute the absolute expiry marker for a TTL, or '' when no TTL.
+ * Stores \[expires:<epoch-ms>] so expiry is fixed at write time and
+ * survives across sessions.
+ */
+export function renderExpiryMarker(ttl: string | undefined, now: number = Date.now()): string {
+  const ms = parseTtlMs(ttl)
+  if (ms === undefined) return ''
+  return '[expires:' + (now + ms) + ']'
+}
+
+/** Parse an absolute \[expires:<epoch-ms>] marker; undefined when absent. */
+export function parseExpiry(line: string): number | undefined {
+  const m = /^\[expires:(\d+)\]/.exec(line.trim())
+  return m ? Number(m[1]) : undefined
+}
+
+/** Whether an entry has expired, judged by its absolute expiry marker. */
+export function isExpired(line: string, now: number = Date.now()): boolean {
+  const exp = parseExpiry(line)
+  return exp !== undefined && exp <= now
 }

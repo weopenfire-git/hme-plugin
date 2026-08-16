@@ -131,4 +131,20 @@ describe('MemoryStore', () => {
     const suggestion = await store.suggestEvictions(dir)
     expect(suggestion).toContain('candidates')
   })
+
+  it('value tier 2 applies a TTL expiry marker', () => {
+    const store = new MemoryStore(makeConfig())
+    store.mutateTopic(['method'], 'build steps', dir, 2)
+    const content = readFileSync(join(dir, '.dsh', 'hme', 'archive', 'method.md'), 'utf8')
+    expect(content).toContain('[v:2]')
+    expect(content).toMatch(/\[expires:\d+\]/)
+  })
+
+  it('no value means no expiry marker', () => {
+    const store = new MemoryStore(makeConfig())
+    store.mutateTopic(['plain'], 'a plain note', dir)
+    const content = readFileSync(join(dir, '.dsh', 'hme', 'archive', 'plain.md'), 'utf8')
+    expect(content).not.toContain('expires')
+    expect(content).not.toContain('[v:')
+  })
 })

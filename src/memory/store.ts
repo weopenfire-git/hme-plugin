@@ -5,10 +5,11 @@ import type { Config } from '../config.ts'
 import type { ArchiveCategory, FrozenSnapshot, MemoryAction, MemoryTarget } from '../types.ts'
 import {
   applyTaggedWrite, emptyIndex, normalizeTags, parseIndex, renderIndex,
-  renderEntry, searchEntries, stripTags, extractTags, tagFilename,
+  renderEntry, searchEntries, stripTags, extractTags, tagFilename, isExpired,
 } from './archive.ts'
 import type { ArchiveTag } from '../types.ts'
-import type { RecallHitV2 } from './archive.ts'
+import type { MemoryValue, EntryMeta, RecallHitV2 } from './archive.ts'
+import { parseRules, renderRules, ttlForTier } from './rules.ts'
 import { applyMutation, parseFacts, renderFacts } from './facts.ts'
 
 /** Per-fact usage statistics, kept in a metadata file beside archive.md. */
@@ -151,7 +152,7 @@ export class MemoryStore {
   }
 
   /** Write one tagged entry into the archive directory, overwriting same-tag entries. */
-  mutateTopic(tags: readonly ArchiveTag[], content: string | undefined, workspaceRoot: string | undefined): string {
+  mutateTopic(tags: readonly ArchiveTag[], content: string | undefined, workspaceRoot: string | undefined, value?: MemoryValue, ttl?: string): string {
     if (content === undefined || content.trim().length === 0) return 'archive requires non-empty content'
     this.ensureMigrated(workspaceRoot)
     const norm = normalizeTags(tags)
@@ -163,7 +164,11 @@ export class MemoryStore {
     const filename = tagFilename(tag)
     const targetPath = this.topicPath(filename, workspaceRoot)
     const existing = readFileIfPresent(targetPath).trim().split(/\r?\n/).filter((l) => l.length > 0)
-    const outcome = applyTaggedWrite(existing, norm, content)
+    const effectiveTtl = (value === undefined && ttl === undefined)
+      ? undefined
+      : (ttl ?? ttlForTier(this.readRules(workspaceRoot), value))
+    const meta: EntryMeta = { value, ttl: effectiveTtl }
+    const outcome = applyTaggedWrite(existing, norm, content, meta)
     writeFileEnsured(targetPath, outcome.entries.join('\n') + '\n')
     // update index
     const indexPath = this.indexPath(workspaceRoot)
@@ -221,6 +226,13 @@ export class MemoryStore {
   }
 
   /** Read the metadata map, degrading to empty when absent or corrupt. */
+  /** Read the expiry rules file, degrading to defaults when absent/corrupt. */
+  private readRules(workspaceRoot: string | undefined) {
+    const dir = this.archiveDir(workspaceRoot)
+    const rulesPath = resolve(dir, 'RULES.md')
+    return parseRules(readFileIfPresent(rulesPath))
+  }
+
   private readMeta(workspaceRoot: string | undefined): ArchiveMeta {
     const text = readFileIfPresent(this.metaPath(workspaceRoot))
     if (text.trim().length === 0) return {}

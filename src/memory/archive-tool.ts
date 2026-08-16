@@ -13,6 +13,8 @@ export function archiveTool(store: MemoryStore) {
       tag: { type: 'string' },
       content: { type: 'string' },
       old_text: { type: 'string' },
+      value: { type: 'integer', enum: [1, 2, 3] },
+      ttl: { type: 'string' },
     },
     output: {
       schema: { type: 'string' },
@@ -29,7 +31,7 @@ export function archiveTool(store: MemoryStore) {
       }
       const tag = args.tag
       if (!tag) return 'archive add requires a tag'
-      return store.mutateTopic([tag], args.content, workspaceRoot)
+      return store.mutateTopic([tag], args.content, workspaceRoot, args.value, args.ttl)
     },
   })
 }
