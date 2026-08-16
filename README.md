@@ -1,5 +1,17 @@
 # HME — 给 DeepSeek 装上大脑
 
+> 跨会话长期记忆插件：让 DeepSeek Harness 的 Agent 记住你是谁、项目怎么写的、踩过哪些坑——**不会失忆，也不会被杂事烦扰**。
+
+## 🚀 最近更新
+
+| 版本 | 亮点 |
+|---|---|
+| **v0.3.0** | **TTL 到期 + 价值分层**：记忆可设过期（V1 身份/教训永不过期，V2/V3 默认 365d/90d），规则可自定义；写入打 `[v:N]` 价值标记，越重要的越留住 |
+| **v0.2.0** | **标签索引 archive**：archive 升级为按主题分文件 + 标签覆盖（同标签写入自动替换旧的，自我收敛不臃肿）；附多级记忆架构文档 |
+| v0.1.0 | 首个版本：core 记忆（USER/MEMORY）+ archive 扩容 + recall 检索 |
+
+## 一句话定位
+
 DeepSeek Harness 很强，但有个硬伤：**会话结束，记忆清零** ，下次从头再来。
 
 HME（Harness-Memory-Evolution）就是来治这个的。
@@ -58,6 +70,14 @@ dsh plugin --profile web add @ymw/dsh-hme
 # hme-plugin — Harness-Memory-Evolution
 
 *Give your DeepSeek a mind of its own.*
+
+## Changelog
+
+| Version | Highlights |
+|---|---|
+| **v0.3.0** | **TTL expiry + value tiers**: memories can expire (V1 identity/lessons never; V2/V3 default 365d/90d, rules editable); entries carry `[v:N]` tier markers so the precious 1/10 is kept |
+| **v0.2.0** | **Tag-indexed archive**: per-topic files + tag overwrite (same tag replaces old entry, self-consolidating); multi-tier architecture doc |
+| v0.1.0 | Initial: core memory (USER/MEMORY) + archive overflow + recall |
 
 DeepSeek Harness is formidable — yet it harbors one flaw: **the moment a session ends, the memory resets.** Preferences, conventions, hard-won lessons all evaporate, and the next session starts from blank.
 
