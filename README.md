@@ -193,6 +193,15 @@ pnpm exec tsc -p hme-plugin
 pnpm exec vitest run --config hme-plugin/vitest.config.ts
 ```
 
+### Developing alongside other plugins in the same repo
+
+If you develop several independent plugins inside one workspace checkout (for
+example under `DSHarness/prototypes/`), follow the shared collaboration rules
+in `DSHarness/prototypes/AGENTS.md` — each plugin stays self-contained with its
+own `node_modules`, workspace entries append without touching others', and
+shared files such as `pnpm-workspace.yaml` / `pnpm-lock.yaml` are only
+appended, never rewritten.
+
 ## Roadmap
 
 - **Phase 1.5** — archive overflow layer (`archive` / `recall` tools); see [ARCHIVE.md](./ARCHIVE.md).
