@@ -1,7 +1,7 @@
 {
   "name": "@yinging/dsh-hme",
   "description": "Harness-Memory-Evolution (HME): cross-session long-term memory for DeepSeek Harness — bounded core memory plus a tag-indexed, self-consolidating archive.",
-  "version": "0.3.0",
+  "version": "0.5.0",
   "publishConfig": {
     "access": "public"
   },

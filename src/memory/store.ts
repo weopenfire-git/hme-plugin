@@ -9,8 +9,10 @@ import {
 } from './archive.ts'
 import type { ArchiveTag } from '../types.ts'
 import type { MemoryValue, EntryMeta, RecallHitV2 } from './archive.ts'
-import { parseRules, renderRules, ttlForTier } from './rules.ts'
+import { DEFAULT_RULES, parseRules, renderRules, ttlForTier } from './rules.ts'
 import { applyMutation, parseFacts, renderFacts } from './facts.ts'
+import { VERSION } from '../version.ts'
+import type { StatusReport } from '../status.ts'
 
 /** Per-fact usage statistics, kept in a metadata file beside archive.md. */
 interface FactUsage {
@@ -283,5 +285,45 @@ export class MemoryStore {
       .slice(0, n)
     if (ranked.length === 0) return ''
     return 'candidates to remove (least used, then oldest):\n' + ranked.map((r) => '- ' + r.fact).join('\n')
+  }
+
+  /** Collect a best-effort status snapshot for the dashboard; never throws. */
+  status(workspaceRoot: string | undefined): StatusReport {
+    let rules = DEFAULT_RULES
+    try {
+      rules = this.readRules(workspaceRoot)
+    } catch {
+      // RULES.md present but unreadable: the dashboard degrades to defaults.
+    }
+    const dir = this.archiveDir(workspaceRoot)
+    let topicCount = 0
+    let entryCount = 0
+    try {
+      for (const file of readdirSync(dir)) {
+        if (!file.endsWith('.md') || file === 'INDEX.md') continue
+        topicCount += 1
+        const text = readFileIfPresent(resolve(dir, file))
+        entryCount += text.trim().split(/\r?\n/).filter((l) => l.length > 0).length
+      }
+    } catch {
+      // Archive directory absent or unreadable: report zero topics and entries.
+    }
+    const memoryChars = workspaceRoot === undefined ? null : readForFreeze(this.memoryPath(workspaceRoot)).length
+    return {
+      version: VERSION,
+      memoryCharLimit: this.config.memoryCharLimit,
+      userCharLimit: this.config.userCharLimit,
+      archiveCharLimit: this.config.archiveCharLimit,
+      userMemoryFile: this.config.userMemoryFile,
+      workspaceMemoryFile: this.config.workspaceMemoryFile,
+      archiveDirectory: this.config.archiveDirectory,
+      enableBanner: this.config.enableBanner,
+      enableStatus: this.config.enableStatus,
+      userChars: readForFreeze(this.userPath()).length,
+      memoryChars,
+      topicCount,
+      entryCount,
+      rules: { v1Ttl: rules.v1Ttl, v2Ttl: rules.v2Ttl, v3Ttl: rules.v3Ttl },
+    }
   }
 }

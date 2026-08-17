@@ -29,6 +29,10 @@ export interface Config {
   archiveMemoryFile: string
   /** Workspace-relative directory holding per-topic archive files (P2.1). */
   archiveDirectory: string
+  /** Print the startup status dashboard when the plugin loads. */
+  enableBanner: boolean
+  /** Register the hme-status tool and /hme-status slash command. */
+  enableStatus: boolean
 }
 
 export const Config: z<Config> = z.object({
@@ -39,4 +43,6 @@ export const Config: z<Config> = z.object({
   archiveCharLimit: z.number().step(1).min(1).default(131072),
   archiveMemoryFile: z.string().default(DEFAULT_ARCHIVE_FILE),
   archiveDirectory: z.string().default(DEFAULT_ARCHIVE_DIR),
+  enableBanner: z.boolean().default(true),
+  enableStatus: z.boolean().default(true),
 })

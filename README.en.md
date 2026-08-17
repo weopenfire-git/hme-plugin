@@ -4,13 +4,24 @@
 
 *Give your DeepSeek a mind of its own.*
 
+> **Current version v0.5.0** · requires DeepSeek Harness `dsh-* >=0.1.0-rc.6 <0.2.0`
+
 ## Changelog
 
 | Version | Highlights |
 |---|---|
+| **v0.5.0** | **Startup banner + status dashboard**: a dashboard banner lights up on start; a new `hme-status` tool and optional `/hme-status` command report version, memory usage, archive counts, and rules; `enableBanner` / `enableStatus` toggles (on by default) |
 | **v0.3.0** | **TTL expiry + value tiers**: memories can expire (V1 identity/lessons never; V2/V3 default 365d/90d, rules editable); entries carry `[v:N]` tier markers so the precious 1/10 is kept |
 | **v0.2.0** | **Tag-indexed archive**: per-topic files + tag overwrite (same tag replaces old entry, self-consolidating); multi-tier architecture doc |
 | v0.1.0 | Initial: core memory (USER/MEMORY) + archive overflow + recall |
+
+## Dependency matrix
+
+| Package | Range |
+|---|---|
+| `@deepseek-ai/cordis` | `>=4.0.0 <5.0.0` |
+| `@deepseek-ai/dsh-agent` / `dsh-home-paths` / `dsh-llm` / `dsh-scope` / `dsh-system-prompt` / `dsh-tools` | `>=0.1.0-rc.6 <0.2.0` |
+| `@deepseek-ai/schemastery` | `3.18.1` |
 
 DeepSeek Harness is formidable — yet it harbors one flaw: **the moment a session ends, the memory resets.** Preferences, conventions, hard-won lessons all evaporate, and the next session starts from blank.
 
@@ -38,30 +49,53 @@ Drawing on the strengths of Codex, Claude Code, OpenClaw, and Hermes Agent, HME 
 
 ## Install in 30 seconds
 
+Once installed, every DeepSeek Harness start lights up a **status dashboard** in the terminal:
+
+```text
+╭──────────────────────────────────────────────────────────╮
+│   HME · Harness-Memory-Evolution                  v0.5.0 │
+│ Give your DeepSeek a mind of its own.                    │
+├──────────────────────────────────────────────────────────┤
+│ core memory                                              │
+│   USER.md                               137 / 1597 chars │
+│   MEMORY.md                             412 / 2584 chars │
+│ archive      dir .dsh/hme/archive · 23 across 5 topics   │
+│ rules        V1 never · V2 365d · V3 90d                 │
+├──────────────────────────────────────────────────────────┤
+│ banner:on   status:on                                    │
+╰──────────────────────────────────────────────────────────╯
+```
+
+### Step 1 · Install the plugin
+
 **From GitHub (recommended, works right now):**
 
 ```sh
 dsh plugin --profile web add github:weopenfire-git/hme-plugin
 ```
 
-**Or from npm (once released):**
+**Or from npm (released):**
 
 ```sh
-dsh plugin --profile web add @ymw/dsh-hme
+dsh plugin --profile web add @yinging/dsh-hme
 ```
 
-### Then add one loader row
+### Step 2 · Add one loader row
 
 Open the profile's `cordis.patch.yml` and add a host row:
 
 ```yaml
 - insert:
     - id: hme-plugin
-      name: '@ymw/dsh-hme'  # package name for npm; use github:weopenfire-git/hme-plugin for GitHub
+      name: '@yinging/dsh-hme'  # package name for npm; use github:weopenfire-git/hme-plugin for GitHub
       config:
-        memoryCharLimit: 2584
-        userCharLimit: 1597
+        enableBanner: true    # startup banner (on by default)
+        enableStatus: true    # hme-status tool + /hme-status command (on by default)
 ```
+
+### Step 3 · Restart and behold
+
+Restart dsh — the banner means it's working. At any time, ask for `hme-status` or type `/hme-status` to inspect memory state.
 
 Give your DeepSeek a mind of its own.
 
@@ -71,12 +105,13 @@ Give your DeepSeek a mind of its own.
 
 Cross-session long-term memory for DeepSeek Harness, as an out-of-tree plugin. It gives an agent two bounded plain-text memory files plus a `memory` tool, so user preferences and project facts survive across sessions instead of being relearned every time.
 
-> **Status:** Phase 1 + Phase 1.5 — core memory plus the archive overflow layer. Developer preview: the Harness APIs this plugin builds on are still changing. See [DESIGN.md](./DESIGN.md) and [ARCHIVE.md](./ARCHIVE.md).
+> **Status:** v0.5 — core memory (Phase 1) + archive overflow layer (Phase 1.5) + status dashboard (startup banner, `hme-status` tool, `/hme-status` command). Developer preview: the Harness APIs this plugin builds on are still changing. See [DESIGN.md](./DESIGN.md) and [ARCHIVE.md](./ARCHIVE.md).
 
 ## What it ships
 
 - A `memory` tool that adds, replaces, and removes durable facts.
 - An `archive` tool (add/replace/remove/move) plus a `recall` tool over a larger per-workspace overflow layer.
+- An `hme-status` tool (plus an optional `/hme-status` slash command) reporting version, memory usage against caps, archive counts, and expiry rules.
 - Two context blocks, frozen at session start and injected into every turn of that session:
   - `hme:user` — the global user profile.
   - `hme:memory` — the current workspace's project facts.
@@ -132,6 +167,9 @@ Add a host row to the profile's `cordis.patch.yml` (web, CLI, and headless alike
 | `workspaceMemoryFile` | `.dsh/hme/MEMORY.md` | Workspace-relative project-memory path. |
 | `archiveCharLimit` | `131072` | Soft character cap for the archive (2¹⁷ ≈ one context window). |
 | `archiveMemoryFile` | `.dsh/hme/archive.md` | Workspace-relative archive path. |
+| `archiveDirectory` | `.dsh/hme/archive` | Workspace-relative directory holding per-topic archive files. |
+| `enableBanner` | `true` | Print the startup status dashboard when the plugin loads. |
+| `enableStatus` | `true` | Register the `hme-status` tool and `/hme-status` command. |
 
 ## How it works
 
