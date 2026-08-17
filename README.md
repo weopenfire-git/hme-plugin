@@ -4,13 +4,14 @@
 
 > 跨会话长期记忆插件：让 DeepSeek Harness 的 Agent 记住你是谁、项目怎么写的、踩过哪些坑——**不会失忆，也不会被杂事烦扰**。
 
-> **当前版本 v0.5.0** · 运行依赖 DeepSeek Harness `dsh-* >=0.1.0-rc.6 <0.2.0`
+> **当前版本 v0.5.1** · 运行依赖 DeepSeek Harness `dsh-* >=0.1.0-rc.6 <0.2.0`
 
 ## 🚀 最近更新
 
 | 版本 | 亮点 |
 |---|---|
-| **v0.5.0** | **启动横幅 + 状态面板**：启动时亮起「状态仪表盘」横幅；新增 `hme-status` 工具与可选 `/hme-status` 命令，随时查看版本、记忆容量、档案统计与规则；`enableBanner` / `enableStatus` 开关（默认开启） |
+| **v0.5.1** | **核心层收敛**：banner / hme-status 提升为核心层（与 memory/archive/recall 同级），移除 `enableBanner` / `enableStatus` 开关，始终开启 |
+| **v0.5.0** | **启动横幅 + 状态面板**：启动时亮起「状态仪表盘」横幅；新增 `hme-status` 工具与 `/hme-status` 命令，随时查看版本、记忆容量、档案统计与规则 |
 | **v0.3.0** | **TTL 到期 + 价值分层**：记忆可设过期（V1 身份/教训永不过期，V2/V3 默认 365d/90d），规则可自定义；写入打 `[v:N]` 价值标记，越重要的越留住 |
 | **v0.2.0** | **标签索引 archive**：archive 升级为按主题分文件 + 标签覆盖（同标签写入自动替换旧的，自我收敛不臃肿）；附多级记忆架构文档 |
 | v0.1.0 | 首个版本：core 记忆（USER/MEMORY）+ archive 扩容 + recall 检索 |
@@ -55,16 +56,21 @@ HME（Harness-Memory-Evolution）就是来治这个的。
 
 ```text
 ╭──────────────────────────────────────────────────────────╮
-│   HME · Harness-Memory-Evolution                  v0.5.0 │
+│                                                          │
+│   HME · Harness-Memory-Evolution                  v0.5.1 │
 │ Give your DeepSeek a mind of its own.                    │
+│                                                          │
 ├──────────────────────────────────────────────────────────┤
 │ core memory                                              │
-│   USER.md                               137 / 1597 chars │
-│   MEMORY.md                             412 / 2584 chars │
-│ archive      dir .dsh/hme/archive · 23 across 5 topics   │
-│ rules        V1 never · V2 365d · V3 90d                 │
-├──────────────────────────────────────────────────────────┤
-│ banner:on   status:on                                    │
+│   USER.md                               210 / 1597 chars │
+│   C:\Users\demo\.dsh\hme\USER.md                      │
+│   MEMORY.md                              91 / 2584 chars │
+│   .dsh/hme/MEMORY.md                                     │
+│ archive                                                  │
+│   dir                                   .dsh/hme/archive │
+│   entries                              0 across 0 topics │
+│ rules                                                    │
+│   V1 never · V2 365d · V3 90d                            │
 ╰──────────────────────────────────────────────────────────╯
 ```
 
@@ -91,8 +97,8 @@ dsh plugin --profile web add @yinging/dsh-hme
     - id: hme-plugin
       name: '@yinging/dsh-hme'  # npm 用包名；GitHub 装改为 github:weopenfire-git/hme-plugin
       config:
-        enableBanner: true    # 启动横幅（默认开）
-        enableStatus: true    # hme-status 工具 + /hme-status 命令（默认开）
+        memoryCharLimit: 2584
+        userCharLimit: 1597
 ```
 
 ### 第三步 · 重启，见证

@@ -317,8 +317,6 @@ export class MemoryStore {
       userMemoryFile: this.config.userMemoryFile,
       workspaceMemoryFile: this.config.workspaceMemoryFile,
       archiveDirectory: this.config.archiveDirectory,
-      enableBanner: this.config.enableBanner,
-      enableStatus: this.config.enableStatus,
       userChars: readForFreeze(this.userPath()).length,
       memoryChars,
       topicCount,

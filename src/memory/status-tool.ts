@@ -8,7 +8,7 @@ export function statusTool(store: MemoryStore) {
   return defineTool({
     name: 'hme-status',
     description:
-      'Report the HME memory system status: plugin version, core memory file sizes against their caps, archive topic and entry counts, expiry rules, and which features are enabled.',
+      'Report the HME memory system status: plugin version, core memory file sizes against their caps, archive topic and entry counts, and expiry rules.',
     parameters: {},
     output: {
       schema: { type: 'string' },

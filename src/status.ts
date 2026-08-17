@@ -7,8 +7,6 @@ export interface StatusReport {
   readonly userMemoryFile: string
   readonly workspaceMemoryFile: string
   readonly archiveDirectory: string
-  readonly enableBanner: boolean
-  readonly enableStatus: boolean
   /** Character count of the global USER.md (0 when absent or unreadable). */
   readonly userChars: number
   /** Character count of the workspace MEMORY.md, or null without a workspace root. */
@@ -60,7 +58,6 @@ export function renderStatus(report: StatusReport): string {
   const blank = row('')
   const memoryChars = report.memoryChars === null ? '--' : String(report.memoryChars)
   const rules = 'V1 ' + report.rules.v1Ttl + ' · V2 ' + report.rules.v2Ttl + ' · V3 ' + report.rules.v3Ttl
-  const toggles = 'banner:' + (report.enableBanner ? 'on' : 'off') + '   status:' + (report.enableStatus ? 'on' : 'off')
 
   const lines = [
     top,
@@ -79,8 +76,6 @@ export function renderStatus(report: StatusReport): string {
     kv('entries', report.entryCount + ' across ' + report.topicCount + ' topics'),
     row('rules'),
     row('  ' + rules),
-    mid,
-    row(toggles),
     bottom,
   ]
   return lines.join('\n')

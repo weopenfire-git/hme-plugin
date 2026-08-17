@@ -4,13 +4,14 @@
 
 *Give your DeepSeek a mind of its own.*
 
-> **Current version v0.5.0** · requires DeepSeek Harness `dsh-* >=0.1.0-rc.6 <0.2.0`
+> **Current version v0.5.1** · requires DeepSeek Harness `dsh-* >=0.1.0-rc.6 <0.2.0`
 
 ## Changelog
 
 | Version | Highlights |
 |---|---|
-| **v0.5.0** | **Startup banner + status dashboard**: a dashboard banner lights up on start; a new `hme-status` tool and optional `/hme-status` command report version, memory usage, archive counts, and rules; `enableBanner` / `enableStatus` toggles (on by default) |
+| **v0.5.1** | **Core-layer convergence**: banner and hme-status promoted to the core layer (alongside memory/archive/recall); `enableBanner` / `enableStatus` toggles removed — always on |
+| **v0.5.0** | **Startup banner + status dashboard**: a dashboard banner lights up on start; a `hme-status` tool and `/hme-status` command report version, memory usage, archive counts, and rules |
 | **v0.3.0** | **TTL expiry + value tiers**: memories can expire (V1 identity/lessons never; V2/V3 default 365d/90d, rules editable); entries carry `[v:N]` tier markers so the precious 1/10 is kept |
 | **v0.2.0** | **Tag-indexed archive**: per-topic files + tag overwrite (same tag replaces old entry, self-consolidating); multi-tier architecture doc |
 | v0.1.0 | Initial: core memory (USER/MEMORY) + archive overflow + recall |
@@ -53,16 +54,21 @@ Once installed, every DeepSeek Harness start lights up a **status dashboard** in
 
 ```text
 ╭──────────────────────────────────────────────────────────╮
-│   HME · Harness-Memory-Evolution                  v0.5.0 │
+│                                                          │
+│   HME · Harness-Memory-Evolution                  v0.5.1 │
 │ Give your DeepSeek a mind of its own.                    │
+│                                                          │
 ├──────────────────────────────────────────────────────────┤
 │ core memory                                              │
-│   USER.md                               137 / 1597 chars │
-│   MEMORY.md                             412 / 2584 chars │
-│ archive      dir .dsh/hme/archive · 23 across 5 topics   │
-│ rules        V1 never · V2 365d · V3 90d                 │
-├──────────────────────────────────────────────────────────┤
-│ banner:on   status:on                                    │
+│   USER.md                               210 / 1597 chars │
+│   C:\Users\demo\.dsh\hme\USER.md                      │
+│   MEMORY.md                              91 / 2584 chars │
+│   .dsh/hme/MEMORY.md                                     │
+│ archive                                                  │
+│   dir                                   .dsh/hme/archive │
+│   entries                              0 across 0 topics │
+│ rules                                                    │
+│   V1 never · V2 365d · V3 90d                            │
 ╰──────────────────────────────────────────────────────────╯
 ```
 
@@ -89,8 +95,8 @@ Open the profile's `cordis.patch.yml` and add a host row:
     - id: hme-plugin
       name: '@yinging/dsh-hme'  # package name for npm; use github:weopenfire-git/hme-plugin for GitHub
       config:
-        enableBanner: true    # startup banner (on by default)
-        enableStatus: true    # hme-status tool + /hme-status command (on by default)
+        memoryCharLimit: 2584
+        userCharLimit: 1597
 ```
 
 ### Step 3 · Restart and behold
@@ -168,8 +174,6 @@ Add a host row to the profile's `cordis.patch.yml` (web, CLI, and headless alike
 | `archiveCharLimit` | `131072` | Soft character cap for the archive (2¹⁷ ≈ one context window). |
 | `archiveMemoryFile` | `.dsh/hme/archive.md` | Workspace-relative archive path. |
 | `archiveDirectory` | `.dsh/hme/archive` | Workspace-relative directory holding per-topic archive files. |
-| `enableBanner` | `true` | Print the startup status dashboard when the plugin loads. |
-| `enableStatus` | `true` | Register the `hme-status` tool and `/hme-status` command. |
 
 ## How it works
 

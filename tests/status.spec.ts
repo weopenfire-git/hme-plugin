@@ -17,8 +17,6 @@ function makeReport(overrides: Partial<StatusReport> = {}): StatusReport {
     userMemoryFile: 'C:\\Users\\demo\\hme\\USER.md',
     workspaceMemoryFile: '.dsh/hme/MEMORY.md',
     archiveDirectory: '.dsh/hme/archive',
-    enableBanner: true,
-    enableStatus: true,
     userChars: 12,
     memoryChars: null,
     topicCount: 0,
@@ -52,11 +50,6 @@ describe('renderStatus', () => {
     expect(text).toContain('V1 never · V2 365d · V3 90d')
   })
 
-  it('shows toggle state', () => {
-    expect(renderStatus(makeReport())).toContain('banner:on   status:on')
-    expect(renderStatus(makeReport({ enableBanner: false, enableStatus: false }))).toContain('banner:off   status:off')
-  })
-
   it('clips long paths so every line is the same width', () => {
     const long = 'C:\\very\\long\\' + 'x'.repeat(80) + '\\USER.md'
     const lines = renderStatus(makeReport({ userMemoryFile: long })).split('\n')
@@ -75,8 +68,6 @@ function makeConfig(overrides: Partial<Config> = {}): Config {
     archiveCharLimit: 131072,
     archiveMemoryFile: '.dsh/hme/archive.md',
     archiveDirectory: '.dsh/hme/archive',
-    enableBanner: true,
-    enableStatus: true,
     ...overrides,
   }
 }

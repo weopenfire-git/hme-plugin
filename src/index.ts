@@ -43,8 +43,8 @@ function registerStatusCommand(ctx: Context, store: MemoryStore): void {
 /**
  * HME plugin: a memory tool plus two frozen per-session context blocks over
  * USER.md (global) and MEMORY.md (per-workspace), plus an archive overflow
- * layer with archive / recall tools, plus the v0.5 status dashboard (banner,
- * hme-status tool, and optional /hme-status command).
+ * layer with archive / recall tools, plus the core status dashboard (startup
+ * banner, hme-status tool, and /hme-status command).
  */
 export function apply(ctx: Context, config: Config): void {
   const store = new MemoryStore(config)
@@ -52,13 +52,9 @@ export function apply(ctx: Context, config: Config): void {
   ctx.tools.register(memoryTool(store))
   ctx.tools.register(archiveTool(store))
   ctx.tools.register(recallTool(store))
-  if (config.enableStatus) {
-    ctx.tools.register(statusTool(store))
-    registerStatusCommand(ctx, store)
-  }
-  if (config.enableBanner) {
-    console.log(renderStatus(store.status(undefined)))
-  }
+  ctx.tools.register(statusTool(store))
+  registerStatusCommand(ctx, store)
+  console.log(renderStatus(store.status(undefined)))
   ctx.on('agent/session-start', (payload) => {
     const agent: Agent = payload.agent
     const scope = scopeOf(agent.ctx)
