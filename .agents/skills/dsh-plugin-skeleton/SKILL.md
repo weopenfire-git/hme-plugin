@@ -1,0 +1,213 @@
+---
+name: dsh-plugin-skeleton
+description: Use when scaffolding a new DeepSeek Harness plugin repository, auditing an existing one, or moving a plugin out of a shared checkout — hme-style standalone layout, tsc+tsdown build pipeline, cordis.patch.yml loading, npm publishing, and the Windows/pnpm pitfalls that silently break builds and publishes.
+---
+
+# dsh-plugin-skeleton — hme 式 dsh 插件仓库骨架
+
+用久经考验的布局搭建独立的 DeepSeek Harness 插件仓库（hme-plugin 是参考实现：`@yinging/dsh-hme`，仓库 weopenfire-git/hme-plugin）。以下内容在 Windows 上全部可用，并能干净地发布到 npm + GitHub。
+
+## 什么时候用
+- 新建一个 dsh 插件仓库
+- 审计已有插件仓库是否符合这些约定
+- 把插件从一个共享 checkout（如 DSHarness/prototypes）抽成独立仓库
+
+## 0. 先决定
+- npm scope 与包名：`@<scope>/<plugin>`；开源记得 `publishConfig.access: "public"`
+- 注入哪些服务：插件用到哪些 `ctx.*`（systemPrompt / tools / agent / scope / commands …）——见 §3
+- 是否需要运行时显示自身版本：需要则维护 `src/version.ts` 的 `VERSION` 常量，与 package.json 同步
+
+## 1. 仓库布局
+```text
+<plugin>/
+├─ package.json          # name / type:module / main:lib/index.js / types:lib/types/index.d.ts / files / scripts
+├─ tsconfig.json         # 自包含：es2024 / esnext / bundler / strict / declaration / outDir lib/types / rootDir src
+├─ tsdown.config.ts      # entry ['lib/types/index.js']，clean: false（关键！）
+├─ vitest.config.ts      # root: fileURLToPath(...)，include tests/**/*.spec.ts
+├─ .gitignore            # node_modules/ lib/ .dsh/
+├─ src/
+│  ├─ index.ts           # { name, inject, apply(ctx, config) }
+│  ├─ config.ts          # Config interface + schemastery z.object（每个字段 .default）
+│  └─ ...                # 按功能分模块
+├─ tests/                # vitest 用例
+└─ README.md / README.en.md   # 双语、changelog、安装说明
+```
+
+## 2. 文件模板
+
+### package.json（要点；完整参考 hme-plugin/package.json）
+```json
+{
+  "name": "@scope/my-plugin",
+  "version": "0.1.0",
+  "publishConfig": { "access": "public" },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": { ".": { "types": "./lib/types/index.d.ts", "default": "./lib/index.js" }, "./package.json": "./package.json" },
+  "files": ["lib/index.js", "lib/types/**/*.d.ts"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "prepare": "pnpm run build"
+  },
+  "dependencies": { "@deepseek-ai/schemastery": "3.18.1" },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": ">=4.0.0 <5.0.0",
+    "@deepseek-ai/dsh-agent": ">=0.1.0-rc.6 <0.2.0",
+    "@deepseek-ai/dsh-home-paths": ">=0.1.0-rc.6 <0.2.0",
+    "@deepseek-ai/dsh-llm": ">=0.1.0-rc.6 <0.2.0",
+    "@deepseek-ai/dsh-scope": ">=0.1.0-rc.6 <0.2.0",
+    "@deepseek-ai/dsh-system-prompt": ">=0.1.0-rc.6 <0.2.0",
+    "@deepseek-ai/dsh-tools": ">=0.1.0-rc.6 <0.2.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.1",
+    "@deepseek-ai/dsh-agent": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-home-paths": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-llm": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-scope": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-system-prompt": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-tools": "0.1.0-rc.6",
+    "@types/node": "^22.20.0",
+    "tsdown": "^0.22.2",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  }
+}
+```
+
+### tsconfig.json
+```json
+{
+  "compilerOptions": {
+    "target": "es2024",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+    "declaration": true,
+    "outDir": "lib/types",
+    "rootDir": "src"
+  },
+  "include": ["src"]
+}
+```
+
+### tsdown.config.ts
+```ts
+import { defineConfig } from 'tsdown'
+export default defineConfig({
+  entry: ['lib/types/index.js'],
+  outDir: 'lib',
+  format: ['esm'],
+  platform: 'node',
+  target: 'es2024',
+  fixedExtension: false,
+  dts: false,
+  clean: false, // 关键：clean:true 会删掉 tsc 刚产出的 entry → UNRESOLVED_ENTRY
+})
+```
+
+### vitest.config.ts
+```ts
+import { fileURLToPath } from 'node:url'
+import { defineConfig } from 'vitest/config'
+const dir = fileURLToPath(new URL('.', import.meta.url))
+export default defineConfig({
+  test: { root: dir, include: ['tests/**/*.spec.ts'] },
+})
+```
+
+### .gitignore
+```
+node_modules/
+lib/
+*.tsbuildinfo
+.dsh/
+```
+
+### src/index.ts（最小插件入口）
+```ts
+import type { Context } from '@deepseek-ai/cordis'
+import { Config } from './config.ts'
+
+export const name = 'my-plugin'
+export const inject = ['systemPrompt', 'tools'] // 只列实际注入的服务
+
+export { Config }
+
+export function apply(ctx: Context, config: Config): void {
+  // ctx.tools.register(defineTool({ ... }))
+  // ctx.systemPrompt.context({ name: 'my:block', order: 50, text: (context) => '...' })
+  ctx.on('agent/session-start', () => { /* 冻结每会话状态 */ })
+  ctx.on('agent/disposed', () => { /* 清理 */ })
+}
+```
+
+### src/config.ts
+```ts
+import z from '@deepseek-ai/schemastery'
+
+export interface Config {
+  // 必填字段（接口是严格类型）
+}
+
+export const Config: z<Config> = z.object({
+  // 每个字段都要 .default(...)，这样 schema 推断类型里它们是可选
+})
+```
+
+## 3. 插件入口约定
+- `name` / `inject` / `apply(ctx, config)` 三件套；Config 由 schemastery schema 解析。
+- 工具：`ctx.tools.register(defineTool({ name, description, parameters, output: { schema, render }, execute }))`；execute 里拿工作区根：`exec.agent?.session.header.cwd`。
+- 上下文块：`ctx.systemPrompt.context({ name, order, text })`，text 返回空串则不注入。
+- 会话生命周期用 `agent/session-start` / `agent/disposed`（宿主层拿不到 session/created 的 scope），配合 `scopeOf(agent.ctx)`。
+- 可选服务软集成：`ctx.get('commands')` 未挂载时返回 undefined —— 用最小结构类型调用，不引入硬依赖（hme 的 /hme-status 命令就是这么做的）。
+
+## 4. 坑（按杀伤力排序）
+
+| # | 坑 | 症状 | 解法 |
+|---|---|---|---|
+| 1 | tsdown `clean: true` | 构建报 `UNRESOLVED_ENTRY` | 必须 `clean: false`（tsc 先产 entry，tsdown 再打包） |
+| 2 | cordis.patch.yml 的 Windows 绝对路径 | `ERR_UNSUPPORTED_ESM_URL_SCHEME` | 写成 `file:///D:/.../src/index.ts`；相对路径按 profile 目录解析，不是 cwd |
+| 3 | 未装 `@types/node` | `NodeJS.ErrnoException` 等类型报错 | devDeps 加 `@types/node` |
+| 4 | vitest 没设 root | 测试路径解析错 | `root: fileURLToPath(new URL('.', import.meta.url))` |
+| 5 | 构建两步缺一 | 入口缺失或 .d.ts 没产出 | build 用 `tsc -p tsconfig.json && tsdown`；相对导入带 `.ts` 后缀 |
+| 6 | `files` 漏配 | 发布包缺 lib 或混入 src/tests | `files: ["lib/index.js", "lib/types/**/*.d.ts"]`，发布前 `npm pack --dry-run` |
+| 7 | 忘加 `prepare` | 发布的是旧构建 | `"prepare": "pnpm run build"`（publish 时自动跑） |
+| 8 | peer/dep 放错位置 | 重复安装、版本冲突 | 注入的 dsh-* 服务 + cordis → peerDependencies（用范围）；schemastery 等直接依赖 → dependencies |
+| 9 | 版本双源不同步 | 横幅/状态显示旧版本 | package.json 与 src/version.ts 一起改 |
+| 10 | Windows 终端中文乱码 | 中文变乱码 | 显示层问题、不是数据损坏；用 read 工具或 `-Encoding UTF8` 读 |
+| 11 | Windows 沙箱（agent 环境） | node/pnpm "Access is denied"；子进程 pipe 输出 EPERM | 开发环境约束；stdio 用 inherit/ignore 或提权；不是插件代码问题 |
+| 12 | 把 `.dsh/` 提交 | 个人记忆/运行数据进公共仓库 | gitignore 掉 `node_modules/ lib/ .dsh/` |
+| 13 | `--follow-tags` 推 tag | lightweight tag 没到远端 | `git push origin v0.x.y` 显式推 |
+| 14 | vitest 不 typecheck | 测试里的类型错误没被抓 | 测试文件也过 `tsc --noEmit`（含 tests）或靠自觉 |
+
+## 5. 验证（每次提交/推送前，「test OK then push」）
+```sh
+pnpm install
+pnpm run typecheck && pnpm run test && pnpm run build
+npm pack --dry-run   # 发布前检查包内容
+```
+
+## 6. 加载进 dsh
+- 开发期：profile 的 `cordis.patch.yml` 加 host 行 `name: file:///<绝对路径>/src/index.ts`
+- 发布后：`dsh plugin --profile web add @scope/my-plugin`（npm）或 `github:user/repo`（GitHub）
+- 改源码后要重启 dsh web（config-HMR 只重载 patch 行，不重载插件源码）
+
+## 7. 发布
+```sh
+git add -A && git commit -m "feat: initial"
+git tag v0.1.0
+git push origin main
+git push origin v0.1.0   # lightweight tag 不会被 --follow-tags 推，要显式推
+pnpm publish             # 需要 2FA；prepare 会自动 build
+```
