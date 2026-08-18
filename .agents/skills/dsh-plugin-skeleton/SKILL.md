@@ -190,6 +190,7 @@ export const Config: z<Config> = z.object({
 | 12 | 把 `.dsh/` 提交 | 个人记忆/运行数据进公共仓库 | gitignore 掉 `node_modules/ lib/ .dsh/` |
 | 13 | `--follow-tags` 推 tag | lightweight tag 没到远端 | `git push origin v0.x.y` 显式推 |
 | 14 | vitest 不 typecheck | 测试里的类型错误没被抓 | 测试文件也过 `tsc --noEmit`（含 tests）或靠自觉 |
+| 15 | 发布前漏验证「装上后能看到的安装提示/启动横幅/状态」 | 用户装完一头雾水，或不显示任何活性 | 发布前手动走一遍安装流程，确认启动横幅/状态/命令真的出现在终端或页面里 |
 
 ## 5. 验证（每次提交/推送前，「test OK then push」）
 ```sh
@@ -198,10 +199,22 @@ pnpm run typecheck && pnpm run test && pnpm run build
 npm pack --dry-run   # 发布前检查包内容
 ```
 
+### 5.1 发布前验收清单（别只跑测试）
+- [ ] `npm pack --dry-run`：包内只有 lib + LICENSE + README，无 src/tests
+- [ ] **装上后用户能看到活性**：启动横幅、`hme-status` 类状态、或 `/命令` —— 在真实 dsh（或模拟 ctx）里跑一遍 `apply()` 确认横幅真的打印，别只在代码里写了就发
+- [ ] 依赖：注入的 dsh-* 服务 + cordis 在 peerDependencies；schemastery 等在 dependencies
+- [ ] 版本：package.json 与 src/version.ts 一致
+- [ ] 手动执行一次发布命令序列，确认每步能过（git tag + push + pnpm publish）
+
 ## 6. 加载进 dsh
 - 开发期：profile 的 `cordis.patch.yml` 加 host 行 `name: file:///<绝对路径>/src/index.ts`
 - 发布后：`dsh plugin --profile web add @scope/my-plugin`（npm）或 `github:user/repo`（GitHub）
 - 改源码后要重启 dsh web（config-HMR 只重载 patch 行，不重载插件源码）
+
+## 6.5 推广收录（发布后可选）
+- 想让插件出现在 awesome 榜单：开 PR 把条目加进 `README.md` 的对应分类段。
+- **先确认仓库再开 PR**：GitHub 有十几个 `awesome-deepseek-harness` 变体，真实仓库不是 `deepseek-ai/...`。hme 实际是 <https://github.com/0xsline/awesome-deepseek-harness>（PR #276 已合并）。动手前用 GitHub 检查该 PR 是否已存在/已合并，避免重复开。
+- PR 合并只是开始：确认目标仓库 README 里真的出现你的条目，才算收录完成。
 
 ## 7. 发布
 ```sh
