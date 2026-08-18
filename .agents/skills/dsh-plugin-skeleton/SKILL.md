@@ -13,6 +13,7 @@ description: Use when scaffolding a new DeepSeek Harness plugin repository, audi
 - 把插件从一个共享 checkout（如 DSHarness/prototypes）抽成独立仓库
 
 ## 0. 先决定
+- **动工前先读 §8 协作与避让**：确认没做重、别误动别人的插件
 - npm scope 与包名：`@<scope>/<plugin>`；开源记得 `publishConfig.access: "public"`
 - 注入哪些服务：插件用到哪些 `ctx.*`（systemPrompt / tools / agent / scope / commands …）——见 §3
 - 是否需要运行时显示自身版本：需要则维护 `src/version.ts` 的 `VERSION` 常量，与 package.json 同步
@@ -224,3 +225,22 @@ git push origin main
 git push origin v0.1.0   # lightweight tag 不会被 --follow-tags 推，要显式推
 pnpm publish             # 需要 2FA；prepare 会自动 build
 ```
+
+## 8. 协作与避让（多人 / 多插件开发时必读）
+
+两个窗口做重、或误动别人插件，是最容易浪费整段工期的坑。动手前先过这几条：
+
+1. **先查清单再动手**：确认要做的功能没被「我们已发布/在建的插件」覆盖；先搜 npm + GitHub 同名/同功能。
+2. **一个插件一个主仓库 / 主窗口**：以先建立的那个为准，不要在另一窗口另起同名同功能的仓库（曾发生 doctor / pub-review 两边各做一个同源插件的情况）。
+3. **命名前查占用**：`npm view <name>`、GitHub 搜索，确认 scope/包名/仓库名未被占。
+4. **改共享资源只加自己的**：awesome 榜单、workspace（如 prototypes/）里，只追加自己的条目，绝不编辑/删除他人条目；先确认目标仓库/PR 状态（见 §6.5）。
+5. **发布后回填清单**：新插件发布后更新下面的清单，免得下个人又做重。
+
+### 我们已发布 / 在建的插件（示例清单，以 GitHub/npm 为准，发布后回填）
+
+| 插件 | npm | GitHub | 状态 |
+|---|---|---|---|
+| hme-plugin（跨会话记忆） | `@yinging/dsh-hme` | `weopenfire-git/hme-plugin` | 已发布 v0.5.1 |
+| 发布检查 | — | `weopenfire-git/dsh-plugin-pub-review` | 在建（另一窗口维护） |
+
+> 别的团队应维护自己的清单，删掉/替换上表即可；上表只是示例。
